@@ -1,11 +1,12 @@
+use actix_web::{Responder, get, HttpResponse, web::Path};
 use rand::prelude::*;
 use serde::Serialize;
 
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct FakeData {
     _type: String,
-    _id: u64,
+    _id: u32,
     key: Option<String>,
     name: String,
     #[serde(rename = "fullName")]
@@ -14,7 +15,7 @@ pub struct FakeData {
     r#type: String,
     country: String,
     geo_position: GeoPosition,
-    location_id: u64,
+    location_id: u32,
     #[serde(rename = "inEurope")]
     in_europe: bool,
     #[serde(rename = "countryCode")]
@@ -24,10 +25,10 @@ pub struct FakeData {
     distance: Option<f64>
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct GeoPosition {
-    latitude: f64,
-    longitude: f64,
+    latitude: String,
+    longitude: String,
 }
 
 pub trait RandomGen {
@@ -45,7 +46,7 @@ impl RandomGen for FakeData {
 
         FakeData {
             _type: String::from("Position"),
-            _id: rng.next_u64(),
+            _id: rng.next_u32(),
             key: Option::None,
             name: String::from(random_street_name),
             full_name: String::from(random_street_name)+", "+&random_country.0,
@@ -53,7 +54,7 @@ impl RandomGen for FakeData {
             r#type: String::from("location"),
             country: String::from(random_country.0),
             geo_position: GeoPosition::random(rng),
-            location_id: rng.next_u64(),
+            location_id: rng.next_u32(),
             in_europe: random_country.1,
             country_code: String::from(random_country.2),
             core_country: random_country.3,
@@ -65,8 +66,19 @@ impl RandomGen for FakeData {
 impl RandomGen for GeoPosition {
     fn random<T: RngCore + ?Sized>(rng: &mut T) -> Self {
         GeoPosition {
-            latitude: rng.gen_range(-90.0..90.0),
-            longitude: rng.gen_range(-180.0..180.0)
+            latitude: format!{"{:.7}", rng.gen_range(-90.0..90.0)},
+            longitude: format!{"{:.7}", rng.gen_range(-180.0..180.0)}
         }
     }
+}
+
+#[get("generate/json/{size}")]
+pub async fn generate_data(path: Path<usize>) -> impl Responder {
+    let size: usize = path.into_inner();
+    let mut rng = rand::thread_rng();
+    let mut data = Vec::with_capacity(size);
+    for _ in 0..size {
+        data.push(FakeData::random(&mut rng));
+    }
+    HttpResponse::Ok().json(data)
 }
