@@ -1,6 +1,7 @@
 use actix_web::{Responder, get, HttpResponse, web::Path};
 use rand::prelude::*;
 use serde::Serialize;
+use rayon::prelude::*;
 
 
 #[derive(Serialize, Debug)]
@@ -75,10 +76,6 @@ impl RandomGen for GeoPosition {
 #[get("generate/json/{size}")]
 pub async fn generate_data(path: Path<usize>) -> impl Responder {
     let size: usize = path.into_inner();
-    let mut rng = rand::thread_rng();
-    let mut data = Vec::with_capacity(size);
-    for _ in 0..size {
-        data.push(FakeData::random(&mut rng));
-    }
+    let data = (0..size).into_par_iter().map(|_| FakeData::random(&mut thread_rng())).collect::<Vec<FakeData>>();
     HttpResponse::Ok().json(data)
 }
