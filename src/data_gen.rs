@@ -1,35 +1,33 @@
-use actix_web::{Responder, get, HttpResponse, web::Path};
 use rand::prelude::*;
-use serde::Serialize;
-use rayon::prelude::*;
+use serde::{Serialize, Deserialize};
 
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct FakeData {
-    _type: String,
-    _id: u32,
-    key: Option<String>,
-    name: String,
+    pub _type: String,
+    pub _id: u32,
+    pub key: Option<String>,
+    pub name: String,
     #[serde(rename = "fullName")]
-    full_name: String,
-    iata_airport_code: Option<String>,
-    r#type: String,
-    country: String,
-    geo_position: GeoPosition,
-    location_id: u32,
+    pub full_name: String,
+    pub iata_airport_code: Option<String>,
+    pub r#type: String,
+    pub country: String,
+    pub geo_position: GeoPosition,
+    pub location_id: u32,
     #[serde(rename = "inEurope")]
-    in_europe: bool,
+    pub in_europe: bool,
     #[serde(rename = "countryCode")]
-    country_code: String,
+    pub country_code: String,
     #[serde(rename = "coreCountry")]
-    core_country: bool,
-    distance: Option<f64>
+    pub core_country: bool,
+    pub distance: Option<f64>
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct GeoPosition {
-    latitude: String,
-    longitude: String,
+    pub latitude: String,
+    pub longitude: String,
 }
 
 pub trait RandomGen {
@@ -71,11 +69,4 @@ impl RandomGen for GeoPosition {
             longitude: format!{"{:.7}", rng.gen_range(-180.0..180.0)}
         }
     }
-}
-
-#[get("generate/json/{size}")]
-pub async fn generate_data(path: Path<usize>) -> impl Responder {
-    let size: usize = path.into_inner();
-    let data = (0..size).into_par_iter().map(|_| FakeData::random(&mut thread_rng())).collect::<Vec<FakeData>>();
-    HttpResponse::Ok().json(data)
 }
