@@ -1,8 +1,0 @@
-2023.11.22 00:08:38 INFO  Started: Metals version 1.1.0 in folders 'C:\Code\sofixit_task' for client Visual Studio Code 1.84.2.
-2023.11.22 00:08:38 WARN  Build server is not auto-connectable.
-2023.11.22 00:08:38 WARN  no build tool detected in workspace 'C:\Code\sofixit_task'. The most common cause for this problem is that the editor was opened in the wrong working directory, for example if you use sbt then the workspace directory should contain build.sbt. 
-lis 22, 2023 12:12:14 AM org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint notify
-INFO: Unsupported notification method: $/setTrace
-2023.11.22 00:53:20 INFO  Shutting down server
-2023.11.22 00:53:20 INFO  shutting down Metals
-2023.11.22 00:53:20 INFO  Exiting server
