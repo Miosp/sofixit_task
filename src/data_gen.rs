@@ -1,6 +1,30 @@
 use rand::prelude::*;
+use regex::Regex;
 use serde::{Serialize, Deserialize};
+use indexmap::IndexMap;
 
+pub static FIELDS: [&str; 15] = ["_type", "_id", "key", "name", "fullName", "iata_airport_code", "type", "country", "latitude", "longtitude", "location_id", "inEurope", "countryCode", "coreCountry", "distance"];
+
+#[derive(Debug, Clone)]
+pub enum FieldType {
+    String(String),
+    U32(u32),
+    StringOption(Option<String>),
+    Bool(bool),
+    F64Option(Option<f64>),
+}
+
+impl FieldType {
+    pub fn to_string(&self) -> String {
+        match self {
+            FieldType::String(s) => s.clone(),
+            FieldType::U32(u) => u.to_string(),
+            FieldType::StringOption(s) => s.clone().unwrap_or(String::from("null")),
+            FieldType::Bool(b) => b.to_string(),
+            FieldType::F64Option(f) => f.clone().unwrap_or(0.0).to_string(),
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FakeData {
@@ -21,7 +45,7 @@ pub struct FakeData {
     pub country_code: String,
     #[serde(rename = "coreCountry")]
     pub core_country: bool,
-    pub distance: Option<f64>
+    pub distance: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -68,5 +92,62 @@ impl RandomGen for GeoPosition {
             latitude: format!{"{:.7}", rng.gen_range(-90.0..90.0)},
             longitude: format!{"{:.7}", rng.gen_range(-180.0..180.0)}
         }
+    }
+}
+
+impl FakeData {
+    pub fn get_filtered_vec(&self, fields: &Vec<&str>) -> Vec<String> {
+        return fields.iter().map(|field| match *field {
+                "_type" => self._type.clone(),
+                "_id" => self._id.to_string(),
+                "key" => self.key.clone().unwrap_or(String::from("null")),
+                "name" => self.name.clone(),
+                "fullName" => self.full_name.clone(),
+                "iata_airport_code" => self.iata_airport_code.clone().unwrap_or(String::from("null")),
+                "type" => self.r#type.clone(),
+                "country" => self.country.clone(),
+                "latitude" => self.geo_position.latitude.clone(),
+                "longitude" => self.geo_position.longitude.clone(),
+                "location_id" => self.location_id.to_string(),
+                "inEurope" => self.in_europe.to_string(),
+                "countryCode" => self.country_code.clone(),
+                "coreCountry" => self.core_country.to_string(),
+                "distance" => self.distance.as_ref().unwrap_or(&0.0).to_string(),
+                _ => String::from("None")
+            }
+        ).collect();
+    }
+
+    pub fn get_filtered_indexmap(&self, fields: &Vec<&str>) -> IndexMap<String, FieldType> {
+        let mut map = IndexMap::new();
+        for field in fields {match *field {
+                "_type" => map.insert(String::from("_type"), FieldType::String(self._type.clone())),
+                "_id" => map.insert(String::from("_id"), FieldType::U32(self._id)),
+                "key" => map.insert(String::from("key"), FieldType::StringOption(self.key.clone())),
+                "name" => map.insert(String::from("name"), FieldType::String(self.name.clone())),
+                "fullName" => map.insert(String::from("fullName"), FieldType::String(self.full_name.clone())),
+                "iata_airport_code" => map.insert(String::from("iata_airport_code"), FieldType::StringOption(self.iata_airport_code.clone())),
+                "type" => map.insert(String::from("type"), FieldType::String(self.r#type.clone())),
+                "country" => map.insert(String::from("country"), FieldType::String(self.country.clone())),
+                "latitude" => map.insert(String::from("latitude"), FieldType::String(self.geo_position.latitude.clone())),
+                "longitude" => map.insert(String::from("longitude"), FieldType::String(self.geo_position.longitude.clone())),
+                "location_id" => map.insert(String::from("location_id"), FieldType::U32(self.location_id)),
+                "inEurope" => map.insert(String::from("inEurope"), FieldType::Bool(self.in_europe)),
+                "countryCode" => map.insert(String::from("countryCode"), FieldType::String(self.country_code.clone())),
+                "coreCountry" => map.insert(String::from("coreCountry"), FieldType::Bool(self.core_country)),
+                "distance" => map.insert(String::from("distance"), FieldType::F64Option(self.distance.clone())),
+                _ => map.insert(String::from("None"), FieldType::String(String::from("None")))
+            };
+        }
+        return map;
+    }
+
+    pub fn to_computed_vec(&self, fields: &Vec<&str>) -> Vec<String> {
+        let used_fields: Vec<&str> = FIELDS.clone().into_iter().filter(|x| fields.iter().any(|y| {
+            let re = Regex::new(&format!(r"\b{}\b", x)).unwrap();
+            re.is_match(y)
+        })).collect();
+        let map = self.get_filtered_indexmap(&used_fields);
+        Vec::new()
     }
 }

@@ -1,20 +1,53 @@
-use actix_web::{get, HttpResponse, Responder, web::{Path, Data}};
+use actix_web::{get, HttpResponse, Responder, web::{Data, Query}};
 
 use rand::prelude::*;
 use rayon::prelude::*;
-use crate::{data_gen::{FakeData, RandomGen}, AppConfig, data_csv::CSVData};
+use regex::Regex;
+use serde::Deserialize;
+use crate::{data_gen::{FakeData, RandomGen, FIELDS}, AppConfig};
 use csv::Writer;
 
-#[get("generate/json/{size}")]
-pub async fn generate_data(path: Path<usize>) -> impl Responder {
-    let size: usize = path.into_inner();
-    let data = (0..size).into_par_iter().map(|_| FakeData::random(&mut thread_rng())).collect::<Vec<FakeData>>();
-    HttpResponse::Ok().json(data)
+#[derive(Deserialize)]
+struct CSVFields {
+    length: Option<usize>,
+    fields: Option<String>,
 }
 
-#[get("generate/csv/{size}")]
-pub async fn data_to_csv(path: Path<usize>, data: Data<AppConfig>) -> impl Responder {
-    let req_path = format!("http://{}:{}/generate/json/{}", data.root, data.port, path.into_inner());
+#[derive(Deserialize)]
+struct JSONFields {
+    length: Option<usize>,
+}
+
+
+/// API endpoint to generate fake data in JSON format with arguments specified in `JSONFields` struct.
+/// 
+/// # Returns
+/// 
+/// Response with JSON data.
+#[get("generate/json")]
+pub async fn generate_data(args: Query<JSONFields>) -> impl Responder {
+    let size = args.into_inner().length.unwrap_or(10);
+    let data: Vec<FakeData> = (0..size).into_par_iter().map(|_| FakeData::random(&mut thread_rng())).collect();
+    HttpResponse::Ok()
+    .content_type("application/json; charset=utf-8")
+    .json(data)
+}
+
+
+/// API endpoint to convert JSON data to CSV format with arguments specified in `CSVFields` struct.
+/// 
+/// # Returns
+/// 
+/// Response with CSV data.
+#[get("generate/csv")]
+pub async fn data_to_csv(data: Data<AppConfig>, info: Query<CSVFields>) -> impl Responder {
+    let args = info.into_inner();
+    let size = args.length.unwrap_or(10);
+    let fields_string = args.fields.unwrap_or(String::from("type, _id, name, latitude, longitude"));
+    let fields: Vec<&str> = fields_string.split(',').map(|x| x.trim()).collect();
+
+    // Make request to generator service
+    let req_path = format!("http://{}:{}/generate/json?length={}", data.root, data.port, size);
     let resp = reqwest::get(req_path).await;
     if resp.is_err() {
         return HttpResponse::BadRequest().body(format!("{:?}", resp.unwrap_err()));
@@ -22,17 +55,18 @@ pub async fn data_to_csv(path: Path<usize>, data: Data<AppConfig>) -> impl Respo
     let resp = match resp.unwrap().json::<Vec<FakeData>>().await {
         Ok(data) => data,
         Err(_) => return HttpResponse::BadRequest().body("Failed to parse JSON response"),
-    
     };
 
+    // Write CSV data
     let mut writer = Writer::from_writer(vec![]);
+    writer.write_record(&fields).unwrap();
     for row in resp {
-        if let Err(e) = writer.serialize(CSVData::from(row)) {
-            return HttpResponse::BadRequest().body(e.to_string());
-        }
+        writer.write_record(row.get_filtered_vec(&fields)).unwrap();
     }
 
     let csv = String::from_utf8(writer.into_inner().unwrap()).unwrap();
 
-    HttpResponse::Ok().body(csv)
+    HttpResponse::Ok()
+    .content_type("text/csv; charset=utf-8")
+    .body(csv)
 }

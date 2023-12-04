@@ -1,0 +1,21 @@
+WHITESPACE = _{ " " }
+letter = _{ 'a'..'z' | 'A' .. 'Z' }
+operator = _{ add | subtract | multiply | divide }
+	add = { "+" }
+    subtract = { "-" }
+    multiply = { "*" }
+    divide = { "/" }
+function = { "sqrt" | "pow2" }
+functionExpr = ${ function ~ "(" ~ WHITESPACE* ~ expr ~ WHITESPACE* ~ ")" }
+
+number = @{ '1'..'9' ~ '0'..'9'* }
+constant = {"_type" | "_id" | "key"| "name" | "fullName" | "iata_airport_code" | "type" | "country" | "latitude" | "longitude" | "location_id" | "inEurope" | "countryCode" | "coreCountry" | "distance" }
+string = { letter+ }
+
+primary = _{ constant | functionExpr | number | string | parenthesesExpr }
+negated = { "-" ~ primary }
+atom = _{ negated | primary }
+expr = { atom ~ (operator ~ atom)* }
+parenthesesExpr = { "(" ~ expr ~ ")" }
+
+res = { expr | parenthesesExpr }
