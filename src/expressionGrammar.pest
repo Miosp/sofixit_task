@@ -1,21 +1,20 @@
-WHITESPACE = _{ " " }
-letter = _{ 'a'..'z' | 'A' .. 'Z' }
 operator = _{ add | subtract | multiply | divide }
 	add = { "+" }
     subtract = { "-" }
     multiply = { "*" }
     divide = { "/" }
 function = { "sqrt" | "pow2" }
-functionExpr = ${ function ~ "(" ~ WHITESPACE* ~ expr ~ WHITESPACE* ~ ")" }
+functionExpr = ${ function ~ "(" ~ WHITE_SPACE* ~ expr ~ WHITE_SPACE* ~ ")" }
+number = { '1'..'9' ~ '0'..'9'* }
+string = { ASCII_ALPHA+ }
 
-number = @{ '1'..'9' ~ '0'..'9'* }
-constant = {"_type" | "_id" | "key"| "name" | "fullName" | "iata_airport_code" | "type" | "country" | "latitude" | "longitude" | "location_id" | "inEurope" | "countryCode" | "coreCountry" | "distance" }
-string = { letter+ }
+constant = ${ ("_type" | "_id" | "key"| "name" | "fullName" | "iata_airport_code" | "type" | "country" | "latitude" | "longitude" | "location_id" | "inEurope" | "countryCode" | "coreCountry" | "distance") ~ !ASCII_ALPHANUMERIC }
 
 primary = _{ constant | functionExpr | number | string | parenthesesExpr }
-negated = { "-" ~ primary }
+negated = ${ "-" ~ primary }
 atom = _{ negated | primary }
-expr = { atom ~ (operator ~ atom)* }
-parenthesesExpr = { "(" ~ expr ~ ")" }
+nonParenthesesExpr = _{ atom ~ WHITE_SPACE* ~ (operator ~ WHITE_SPACE* ~ atom ~ WHITE_SPACE*)* }
+parenthesesExpr = { "(" ~ nonParenthesesExpr ~ ")" }
 
-res = { expr | parenthesesExpr }
+expr = _{ nonParenthesesExpr | parenthesesExpr }
+result = _{ SOI ~ expr ~ !ANY }

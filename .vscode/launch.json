@@ -31,12 +31,12 @@
                     "test",
                     "--no-run",
                     "--bin=sofixit_task",
-                    "--package=sofixit_task"
+                    "--package=sofixit_task",
                 ],
                 "filter": {
                     "name": "sofixit_task",
                     "kind": "bin"
-                }
+                },
             },
             "args": [],
             "cwd": "${workspaceFolder}"

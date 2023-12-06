@@ -58,11 +58,11 @@ fn parse_expression(expression: &str) -> Result<Expression, String> {
                     "pow2" => Function::PowerOf2,
                     _ => unreachable!(),
                 };
-                let expr = parse(inner.next().unwrap().into_inner())?;
+                let expr = parse(inner)?;
                 Ok(Expression::Funct(function, Box::new(expr)))
             },
             Rule::negated => parse(primary.into_inner()).map(|expr| Expression::Negate(Box::new(expr))),
-            Rule::expr => parse(primary.into_inner()),
+            //If we reach the end of the expression, we're done
             _ => unreachable!(),
         }).map_infix(|lhs, op, rhs| {
             let op = match op.as_rule() {
@@ -83,13 +83,13 @@ fn parse_expression(expression: &str) -> Result<Expression, String> {
         })
         .parse(pairs)
     }
-    let output = ExpressionParser::parse(Rule::res, expression).map_err(|e| format!("{:?}", e))?.next().unwrap().into_inner();
+    let output = ExpressionParser::parse(Rule::result, expression).map_err(|e| format!("{:?}", e))?;
     parse(output)
 }
 
 #[test]
 fn test_parse_expression() {
-    let expression ="sqrt(location_id)";
+    let expression ="4 * (4 + 6) + -1 + -2 --2 -(-1) -(-4* 55) + sqrt(nice) + pow2(type)";
     let result = parse_expression(expression);
     assert!(result.is_ok());
     println!("{:?}", result.unwrap());
