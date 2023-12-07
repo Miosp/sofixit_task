@@ -2,29 +2,9 @@ use rand::prelude::*;
 use regex::Regex;
 use serde::{Serialize, Deserialize};
 use indexmap::IndexMap;
+use crate::expression_parser::{parse_expression, Expression};
 
-pub static FIELDS: [&str; 15] = ["_type", "_id", "key", "name", "fullName", "iata_airport_code", "type", "country", "latitude", "longtitude", "location_id", "inEurope", "countryCode", "coreCountry", "distance"];
-
-#[derive(Debug, Clone)]
-pub enum FieldType {
-    String(String),
-    U32(u32),
-    StringOption(Option<String>),
-    Bool(bool),
-    F64Option(Option<f64>),
-}
-
-impl FieldType {
-    pub fn to_string(&self) -> String {
-        match self {
-            FieldType::String(s) => s.clone(),
-            FieldType::U32(u) => u.to_string(),
-            FieldType::StringOption(s) => s.clone().unwrap_or(String::from("null")),
-            FieldType::Bool(b) => b.to_string(),
-            FieldType::F64Option(f) => f.clone().unwrap_or(0.0).to_string(),
-        }
-    }
-}
+pub static FIELDS: [&str; 15] = ["_type", "_id", "key", "name", "fullName", "iata_airport_code", "type", "country", "latitude", "longitude", "location_id", "inEurope", "countryCode", "coreCountry", "distance"];
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FakeData {
@@ -55,11 +35,11 @@ pub struct GeoPosition {
 }
 
 pub trait RandomGen {
-    fn random<T: RngCore + ?Sized>(rng: &mut T) -> Self;
+    fn random<T: Rng + ?Sized>(rng: &mut T) -> Self;
 }
 
 impl RandomGen for FakeData {
-    fn random<T: RngCore + ?Sized>(rng: &mut T) -> Self {
+    fn random<T: Rng + ?Sized>(rng: &mut T) -> Self {
         //array of format (country name, in europe, country code, core country)
         const COUNTRIES: [(&str, bool, &str, bool); 42] = [("Poland", true, "PL", true), ("Germany", true, "DE", true), ("France", true, "FR", true), ("Spain", true, "ES", true), ("Italy", true, "IT", true), ("United Kingdom", true, "GB", true), ("Netherlands", true, "NL", true), ("Belgium", true, "BE", true), ("Greece", true, "GR", true), ("Portugal", true, "PT", true), ("Sweden", true, "SE", true), ("Hungary", true, "HU", true), ("Austria", true, "AT", true), ("Czech Republic", true, "CZ", true), ("Ireland", true, "IE", true), ("Denmark", true, "DK", true), ("Finland", true, "FI", true), ("Norway", true, "NO", true), ("Romania", true, "RO", true), ("Turkey", false, "TR", true), ("Russia", false, "RU", true), ("Switzerland", false, "CH", true), ("Ukraine", false, "UA", true), ("Bulgaria", false, "BG", true), ("Serbia", false, "RS", true), ("Croatia", false, "HR", true), ("Iceland", false, "IS", true), ("Slovakia", false, "SK", true), ("Estonia", false, "EE", true), ("United States", false, "US", true), ("Canada", false, "CA", true), ("Mexico", false, "MX", true), ("Brazil", false, "BR", true), ("Australia", false, "AU", true), ("New Zealand", false, "NZ", true), ("China", false, "CN", true), ("India", false, "IN", true), ("Japan", false, "JP", true), ("South Korea", false, "KR", true), ("South Africa", false, "ZA", true), ("Egypt", false, "EG", true), ("Morocco", false, "MA", false)];
         const STREET_NAMES: [&str; 37] = ["Akacjowa", "Polna", "Kominiarska", "Kwiatowa", "Szkolna", "Kościelna", "Słoneczna", "Ogrodowa", "Topolowa", "Lipowa", "Brzozowa", "Kluczorska", "Klonowa", "Długa", "Krótka", "Kwiska", "Krucza", "Rolanda", "Koszykowa", "Garnizonowa", "Torpedowa", "Bojowników", "Kosynierów", "Marynarska", "Ekwadorska", "Zakopiańska", "Kasprowicza", "Kościuszki", "Słowackiego", "Kopernika", "Sienkiewicza", "Mickiewicza", "Kochanowskiego", "Reymonta", "Sobieskiego", "Piłsudskiego", "Kościelna"];
@@ -87,7 +67,7 @@ impl RandomGen for FakeData {
 }
 
 impl RandomGen for GeoPosition {
-    fn random<T: RngCore + ?Sized>(rng: &mut T) -> Self {
+    fn random<T: Rng + ?Sized>(rng: &mut T) -> Self {
         GeoPosition {
             latitude: format!{"{:.7}", rng.gen_range(-90.0..90.0)},
             longitude: format!{"{:.7}", rng.gen_range(-180.0..180.0)}
@@ -96,58 +76,41 @@ impl RandomGen for GeoPosition {
 }
 
 impl FakeData {
-    pub fn get_filtered_vec(&self, fields: &Vec<&str>) -> Vec<String> {
-        return fields.iter().map(|field| match *field {
-                "_type" => self._type.clone(),
-                "_id" => self._id.to_string(),
-                "key" => self.key.clone().unwrap_or(String::from("null")),
-                "name" => self.name.clone(),
-                "fullName" => self.full_name.clone(),
-                "iata_airport_code" => self.iata_airport_code.clone().unwrap_or(String::from("null")),
-                "type" => self.r#type.clone(),
-                "country" => self.country.clone(),
-                "latitude" => self.geo_position.latitude.clone(),
-                "longitude" => self.geo_position.longitude.clone(),
-                "location_id" => self.location_id.to_string(),
-                "inEurope" => self.in_europe.to_string(),
-                "countryCode" => self.country_code.clone(),
-                "coreCountry" => self.core_country.to_string(),
-                "distance" => self.distance.as_ref().unwrap_or(&0.0).to_string(),
-                _ => String::from("None")
-            }
-        ).collect();
-    }
-
-    pub fn get_filtered_indexmap(&self, fields: &Vec<&str>) -> IndexMap<String, FieldType> {
+    fn get_filtered_indexmap(&self, fields: &Vec<&str>) -> IndexMap<String, Expression> {
         let mut map = IndexMap::new();
-        for field in fields {match *field {
-                "_type" => map.insert(String::from("_type"), FieldType::String(self._type.clone())),
-                "_id" => map.insert(String::from("_id"), FieldType::U32(self._id)),
-                "key" => map.insert(String::from("key"), FieldType::StringOption(self.key.clone())),
-                "name" => map.insert(String::from("name"), FieldType::String(self.name.clone())),
-                "fullName" => map.insert(String::from("fullName"), FieldType::String(self.full_name.clone())),
-                "iata_airport_code" => map.insert(String::from("iata_airport_code"), FieldType::StringOption(self.iata_airport_code.clone())),
-                "type" => map.insert(String::from("type"), FieldType::String(self.r#type.clone())),
-                "country" => map.insert(String::from("country"), FieldType::String(self.country.clone())),
-                "latitude" => map.insert(String::from("latitude"), FieldType::String(self.geo_position.latitude.clone())),
-                "longitude" => map.insert(String::from("longitude"), FieldType::String(self.geo_position.longitude.clone())),
-                "location_id" => map.insert(String::from("location_id"), FieldType::U32(self.location_id)),
-                "inEurope" => map.insert(String::from("inEurope"), FieldType::Bool(self.in_europe)),
-                "countryCode" => map.insert(String::from("countryCode"), FieldType::String(self.country_code.clone())),
-                "coreCountry" => map.insert(String::from("coreCountry"), FieldType::Bool(self.core_country)),
-                "distance" => map.insert(String::from("distance"), FieldType::F64Option(self.distance.clone())),
-                _ => map.insert(String::from("None"), FieldType::String(String::from("None")))
+        for field in fields { match *field {
+                "_type" => map.insert(String::from("_type"), Expression::String(self._type.clone())),
+                "_id" => map.insert(String::from("_id"), Expression::Number(self._id as i64)),
+                "key" => map.insert(String::from("key"), Expression::String(self.key.clone().unwrap_or(String::from("null")))),
+                "name" => map.insert(String::from("name"), Expression::String(self.name.clone())),
+                "fullName" => map.insert(String::from("fullName"), Expression::String(self.full_name.clone())),
+                "iata_airport_code" => map.insert(String::from("iata_airport_code"), Expression::String(self.iata_airport_code.clone().unwrap_or(String::from("null")))),
+                "type" => map.insert(String::from("type"), Expression::String(self.r#type.clone())),
+                "country" => map.insert(String::from("country"), Expression::String(self.country.clone())),
+                "latitude" => map.insert(String::from("latitude"), Expression::Float(self.geo_position.latitude.parse().unwrap())),
+                "longitude" => map.insert(String::from("longitude"), Expression::Float(self.geo_position.longitude.parse().unwrap())),
+                "location_id" => map.insert(String::from("location_id"), Expression::Number(self.location_id as i64)),
+                "inEurope" => map.insert(String::from("inEurope"), Expression::String(self.in_europe.to_string())),
+                "countryCode" => map.insert(String::from("countryCode"), Expression::String(self.country_code.clone())),
+                "coreCountry" => map.insert(String::from("coreCountry"), Expression::String(self.core_country.to_string())),
+                "distance" => map.insert(String::from("distance"), Expression::Float(self.distance.as_ref().unwrap_or(&0.0).to_string().parse().unwrap())),
+                _ => map.insert(String::from("None"), Expression::String(String::from("None")))
             };
         }
         return map;
     }
 
-    pub fn to_computed_vec(&self, fields: &Vec<&str>) -> Vec<String> {
+    pub fn to_computed_vec(&self, fields: &Vec<&str>) -> Result<Vec<String>, String> {
         let used_fields: Vec<&str> = FIELDS.clone().into_iter().filter(|x| fields.iter().any(|y| {
             let re = Regex::new(&format!(r"\b{}\b", x)).unwrap();
             re.is_match(y)
         })).collect();
         let map = self.get_filtered_indexmap(&used_fields);
-        Vec::new()
+
+        fields.iter().map(|field| {
+            let parsed = parse_expression(field)?;
+            let result = parsed.eval(&map)?;
+            Ok(result.to_string())
+        }).collect()
     }
 }

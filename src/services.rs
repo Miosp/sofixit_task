@@ -2,9 +2,8 @@ use actix_web::{get, HttpResponse, Responder, web::{Data, Query}};
 
 use rand::prelude::*;
 use rayon::prelude::*;
-use regex::Regex;
 use serde::Deserialize;
-use crate::{data_gen::{FakeData, RandomGen, FIELDS}, AppConfig};
+use crate::{data_gen::{FakeData, RandomGen}, AppConfig};
 use csv::Writer;
 
 #[derive(Deserialize)]
@@ -61,8 +60,12 @@ pub async fn data_to_csv(data: Data<AppConfig>, info: Query<CSVFields>) -> impl 
     let mut writer = Writer::from_writer(vec![]);
     writer.write_record(&fields).unwrap();
     for row in resp {
-        writer.write_record(row.get_filtered_vec(&fields)).unwrap();
-    }
+        let result = match row.to_computed_vec(&fields) {
+            Ok(data) => data,
+            Err(err) => return HttpResponse::BadRequest().body(err),
+        };
+        writer.write_record(result).unwrap();
+    };
 
     let csv = String::from_utf8(writer.into_inner().unwrap()).unwrap();
 
