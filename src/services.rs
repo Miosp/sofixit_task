@@ -1,20 +1,24 @@
+use std::sync::{Arc, atomic::{AtomicBool, Ordering::SeqCst}};
+
 use actix_web::{get, HttpResponse, Responder, web::{Data, Query}};
 
 use rand::prelude::*;
 use rayon::prelude::*;
 use serde::Deserialize;
-use crate::{data_gen::{FakeData, RandomGen}, AppConfig};
+use crate::{data_gen::{FakeData, RandomGen}, AppConfig, measure};
 use csv::Writer;
 
 #[derive(Deserialize)]
 struct CSVFields {
     length: Option<usize>,
     fields: Option<String>,
+    perf: Option<bool>,
 }
 
 #[derive(Deserialize)]
 struct JSONFields {
     length: Option<usize>,
+    perf: Option<bool>,
 }
 
 
@@ -25,11 +29,26 @@ struct JSONFields {
 /// Response with JSON data.
 #[get("generate/json")]
 pub async fn generate_data(args: Query<JSONFields>) -> impl Responder {
-    let size = args.into_inner().length.unwrap_or(10);
-    let data: Vec<FakeData> = (0..size).into_par_iter().map(|_| FakeData::random(&mut thread_rng())).collect();
+    fn generate_data_inner(size: usize) -> String{
+        let data: Vec<FakeData> = (0..size)
+            .into_par_iter()
+            .map(|_| FakeData::random(&mut thread_rng()))
+            .collect();
+        serde_json::to_string(&data).unwrap()
+    }
+    let args = args.into_inner();
+    let size = args.length.unwrap_or(10);
+    let perf = args.perf.unwrap_or(false);
+
+    let data = if perf {
+        serde_json::to_string(measure!(generate_data_inner(size))).unwrap()
+    } else {
+        generate_data_inner(size)
+    };
+
     HttpResponse::Ok()
     .content_type("application/json; charset=utf-8")
-    .json(data)
+    .body(data)
 }
 
 
@@ -73,3 +92,15 @@ pub async fn data_to_csv(data: Data<AppConfig>, info: Query<CSVFields>) -> impl 
     .content_type("text/csv; charset=utf-8")
     .body(csv)
 }
+
+// /// API endpoint to measure performance of handling CSV data generation with arguments specified in `CSVFields` struct.
+// /// 
+// /// # Returns
+// /// 
+// /// Response with performance data.
+// pub async fn measure_csv_perf(data: Data<AppConfig>, info: Query<CSVFields>) -> impl Responder {
+//     let args = info.into_inner();
+//     let size = args.length.unwrap_or(10);
+
+    
+// }

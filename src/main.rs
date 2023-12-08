@@ -4,6 +4,7 @@ use actix_web::{HttpServer, App, web::Data};
 mod data_gen;
 mod services;
 mod expression_parser;
+mod performance_measure;
 
 #[derive(Clone)]
 struct AppConfig {
