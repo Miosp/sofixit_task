@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use actix_web::{get, HttpResponse, Responder, web::{Data, Query, Path}};
 
 use rand::prelude::*;
@@ -16,7 +18,6 @@ struct CSVFields {
 struct JSONFields {
     perf: Option<bool>,
 }
-
 
 /// API endpoint to generate fake data in JSON format with arguments specified in `JSONFields` struct.
 /// 
@@ -37,7 +38,8 @@ pub async fn generate_data(path: Path<u32>, args: Query<JSONFields>) -> impl Res
     let perf = args.perf.unwrap_or(false);
 
     let data = if perf {
-        serde_json::to_string(measure!(generate_data_inner(size))).unwrap()
+        let result = measure!(generate_data_inner(size));
+        serde_json::to_string(&result).unwrap()
     } else {
         generate_data_inner(size)
     };
@@ -55,38 +57,68 @@ pub async fn generate_data(path: Path<u32>, args: Query<JSONFields>) -> impl Res
 /// Response with CSV data.
 #[get("generate/csv/{length}")]
 pub async fn data_to_csv(path: Path<u32>, data: Data<AppConfig>, info: Query<CSVFields>) -> impl Responder {
+    fn data_to_csv_inner(perf: bool, size: usize, fields: Vec<String>, data: Data<AppConfig>) -> Result<String, String> {
+        let req_path = if perf {
+            format!("http://{}:{}/generate/json/{}?perf=true", data.root, data.port, size)
+        } else {
+            format!("http://{}:{}/generate/json/{}", data.root, data.port, size)
+        };
+    
+        let timer = Instant::now();
+        let resp = reqwest::blocking::get(req_path);
+        let elapsed = timer.elapsed().as_millis();
+        if resp.is_err() {
+            return Err(format!("Failed to get data from server: {}", resp.unwrap_err()));
+        }
+        let resp = if perf {
+            match resp.unwrap().json::<(Vec<FakeData>, f32, u64)>() {
+                Ok(data) => data,
+                Err(_) => return Err(String::from("Failed to parse JSON response")),
+            }
+        } else {
+            match resp.unwrap().json::<Vec<FakeData>>() {
+                Ok(data) => (data, 0.0, 0),
+                Err(_) => return Err(String::from("Failed to parse JSON response")),
+            }
+        };
+        let mut writer = Writer::from_writer(vec![]);
+        writer.write_record(&fields).unwrap();
+        for row in resp.0 {
+            let result = match row.to_computed_vec(&fields) {
+                Ok(data) => data,
+                Err(err) => return Err(format!("Failed to convert data to CSV: {}", err)),
+            };
+            writer.write_record(result).unwrap();
+        };
+        let csv = String::from_utf8(writer.into_inner().unwrap()).unwrap();
+    
+        if perf {
+            Ok(serde_json::to_string(&(csv, (resp.1, resp.2), elapsed)).unwrap())
+        } else {
+            Ok(csv)
+        }
+    }
     let args = info.into_inner();
     let size = path.into_inner() as usize;
-    let fields_string = args.fields.unwrap_or(String::from("type, _id, name, latitude, longitude"));
-    let fields: Vec<&str> = fields_string.split(',').map(|x| x.trim()).collect();
+    let fields = args.fields.unwrap_or(String::from("type, _id, name, latitude, longitude"));
+    let fields: Vec<String> = fields.split(',').map(|x| x.trim().to_string()).collect();
+    let perf = args.perf.unwrap_or(false);
 
-    // Make request to generator service
-    let req_path = format!("http://{}:{}/generate/json?length={}", data.root, data.port, size);
-    let resp = reqwest::get(req_path).await;
-    if resp.is_err() {
-        return HttpResponse::BadRequest().body(format!("{:?}", resp.unwrap_err()));
+    if perf {
+        let res = measure!(data_to_csv_inner(perf, size, fields, data));
+        if res.0.is_err() { return HttpResponse::InternalServerError().body(res.0.unwrap_err()); }
+
+        HttpResponse::Ok()
+        .content_type("application/json; charset=utf-8")
+        .json((res.0.unwrap(), res.1, res.2))
+    } else {
+        let res = data_to_csv_inner(perf, size, fields, data);
+        if res.is_err() { return HttpResponse::InternalServerError().body(res.unwrap_err()); }
+
+        HttpResponse::Ok()
+        .content_type("text/csv; charset=utf-8")
+        .body(res.unwrap())
     }
-    let resp = match resp.unwrap().json::<Vec<FakeData>>().await {
-        Ok(data) => data,
-        Err(_) => return HttpResponse::BadRequest().body("Failed to parse JSON response"),
-    };
-
-    // Write CSV data
-    let mut writer = Writer::from_writer(vec![]);
-    writer.write_record(&fields).unwrap();
-    for row in resp {
-        let result = match row.to_computed_vec(&fields) {
-            Ok(data) => data,
-            Err(err) => return HttpResponse::BadRequest().body(err),
-        };
-        writer.write_record(result).unwrap();
-    };
-
-    let csv = String::from_utf8(writer.into_inner().unwrap()).unwrap();
-
-    HttpResponse::Ok()
-    .content_type("text/csv; charset=utf-8")
-    .body(csv)
 }
 
 // /// API endpoint to measure performance of handling CSV data generation with arguments specified in `CSVFields` struct.

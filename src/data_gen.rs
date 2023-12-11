@@ -100,7 +100,7 @@ impl FakeData {
         return map;
     }
 
-    pub fn to_computed_vec(&self, fields: &Vec<&str>) -> Result<Vec<String>, String> {
+    pub fn to_computed_vec(&self, fields: &Vec<String>) -> Result<Vec<String>, String> {
         let used_fields: Vec<&str> = FIELDS.clone().into_iter().filter(|x| fields.iter().any(|y| {
             let re = Regex::new(&format!(r"\b{}\b", x)).unwrap();
             re.is_match(y)

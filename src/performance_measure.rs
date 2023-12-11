@@ -1,12 +1,3 @@
-use serde::Serialize;
-
-#[derive(Debug, Clone, Serialize)]
-pub struct Measurement {
-    pub data: String,
-    pub cpu_util: Vec<f32>,
-    pub memory_util: Vec<u64>,
-}
-
 #[macro_export]
 macro_rules! measure {
     ($func:expr) => {
@@ -14,7 +5,6 @@ macro_rules! measure {
             use std::sync::{Arc, atomic::{AtomicBool, Ordering::SeqCst}};
             use sysinfo::{SystemExt, System, Pid, ProcessExt, ProcessRefreshKind};
             use std::process::id;
-            use crate::performance_measure::Measurement;
     
             let mut sys = System::new_all();
             sys.refresh_process_specifics(Pid::from(id() as usize), ProcessRefreshKind::everything().without_disk_usage().without_user());
@@ -35,14 +25,11 @@ macro_rules! measure {
                 cpu_util.push(process.cpu_usage());
                 memory_util.push(process.memory());
                 
+                // We are not able to get more precise data than 200ms
                 std::thread::sleep(std::time::Duration::from_millis(200));
             }
     
-            &Measurement {
-                data: handle.join().unwrap(),
-                cpu_util,
-                memory_util,
-            }
+            (handle.join().unwrap(), cpu_util, memory_util)
         }
     };
 }
