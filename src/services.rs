@@ -1,6 +1,4 @@
-use std::sync::{Arc, atomic::{AtomicBool, Ordering::SeqCst}};
-
-use actix_web::{get, HttpResponse, Responder, web::{Data, Query}};
+use actix_web::{get, HttpResponse, Responder, web::{Data, Query, Path}};
 
 use rand::prelude::*;
 use rayon::prelude::*;
@@ -10,14 +8,12 @@ use csv::Writer;
 
 #[derive(Deserialize)]
 struct CSVFields {
-    length: Option<usize>,
     fields: Option<String>,
     perf: Option<bool>,
 }
 
 #[derive(Deserialize)]
 struct JSONFields {
-    length: Option<usize>,
     perf: Option<bool>,
 }
 
@@ -27,8 +23,8 @@ struct JSONFields {
 /// # Returns
 /// 
 /// Response with JSON data.
-#[get("generate/json")]
-pub async fn generate_data(args: Query<JSONFields>) -> impl Responder {
+#[get("generate/json/{length}")]
+pub async fn generate_data(path: Path<u32>, args: Query<JSONFields>) -> impl Responder {
     fn generate_data_inner(size: usize) -> String{
         let data: Vec<FakeData> = (0..size)
             .into_par_iter()
@@ -37,7 +33,7 @@ pub async fn generate_data(args: Query<JSONFields>) -> impl Responder {
         serde_json::to_string(&data).unwrap()
     }
     let args = args.into_inner();
-    let size = args.length.unwrap_or(10);
+    let size = path.into_inner() as usize;
     let perf = args.perf.unwrap_or(false);
 
     let data = if perf {
@@ -57,10 +53,10 @@ pub async fn generate_data(args: Query<JSONFields>) -> impl Responder {
 /// # Returns
 /// 
 /// Response with CSV data.
-#[get("generate/csv")]
-pub async fn data_to_csv(data: Data<AppConfig>, info: Query<CSVFields>) -> impl Responder {
+#[get("generate/csv/{length}")]
+pub async fn data_to_csv(path: Path<u32>, data: Data<AppConfig>, info: Query<CSVFields>) -> impl Responder {
     let args = info.into_inner();
-    let size = args.length.unwrap_or(10);
+    let size = path.into_inner() as usize;
     let fields_string = args.fields.unwrap_or(String::from("type, _id, name, latitude, longitude"));
     let fields: Vec<&str> = fields_string.split(',').map(|x| x.trim()).collect();
 
