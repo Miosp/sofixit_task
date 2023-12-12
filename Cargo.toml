@@ -3,7 +3,11 @@ name = "sofixit_task"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[profile.release]
+opt-level = 3
+lto = "fat"
+panic = "abort"
+strip = "debuginfo"
 
 [dependencies]
 actix-web = "4.4.0"
@@ -19,3 +23,4 @@ pest = "2.7.5"
 pest_derive = "2.7.5"
 lazy_static = "1.4.0"
 sysinfo = "0.29.11"
+tokio = "1.35.0"

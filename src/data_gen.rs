@@ -6,7 +6,7 @@ use crate::expression_parser::{parse_expression, Expression};
 
 pub static FIELDS: [&str; 15] = ["_type", "_id", "key", "name", "fullName", "iata_airport_code", "type", "country", "latitude", "longitude", "location_id", "inEurope", "countryCode", "coreCountry", "distance"];
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FakeData {
     pub _type: String,
     pub _id: u32,
@@ -28,7 +28,7 @@ pub struct FakeData {
     pub distance: Option<f64>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GeoPosition {
     pub latitude: String,
     pub longitude: String,

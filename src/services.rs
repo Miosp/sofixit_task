@@ -4,8 +4,8 @@ use actix_web::{get, HttpResponse, Responder, web::{Data, Query, Path}};
 
 use rand::prelude::*;
 use rayon::prelude::*;
-use serde::Deserialize;
-use crate::{data_gen::{FakeData, RandomGen}, AppConfig, measure};
+use serde::{Deserialize, Serialize};
+use crate::{data_gen::{FakeData, RandomGen}, AppConfig, measure, measure_async};
 use csv::Writer;
 
 #[derive(Deserialize)]
@@ -19,6 +19,40 @@ struct JSONFields {
     perf: Option<bool>,
 }
 
+#[derive(Deserialize, Serialize, Debug, Clone)]
+struct JSONResponsePerf {
+    data: Vec<FakeData>,
+    #[serde(rename = "JSONcpuUtil")]
+    json_cpu_util: Vec<f32>,
+    #[serde(rename = "JSONmemUtil")]
+    json_mem_util: Vec<u64>
+}
+
+impl From<(Vec<FakeData>, Vec<f32>, Vec<u64>)> for JSONResponsePerf {
+    fn from(data: (Vec<FakeData>, Vec<f32>, Vec<u64>)) -> Self {
+        JSONResponsePerf {
+            data: data.0,
+            json_cpu_util: data.1,
+            json_mem_util: data.2,
+        }
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+struct CSVResponsePerf {
+    csv: String,
+    #[serde(rename = "CSVcpuUtil")]
+    csv_cpu_util: Vec<f32>,
+    #[serde(rename = "CSVmemUtil")]
+    csv_mem_util: Vec<u64>,
+    #[serde(rename = "JSONcpuUtil")]
+    json_cpu_util: Vec<f32>,
+    #[serde(rename = "JSONmemUtil")]
+    json_mem_util: Vec<u64>,
+    #[serde(rename = "JSONtime")]
+    json_time: u128,
+}
+
 /// API endpoint to generate fake data in JSON format with arguments specified in `JSONFields` struct.
 /// 
 /// # Returns
@@ -26,22 +60,21 @@ struct JSONFields {
 /// Response with JSON data.
 #[get("generate/json/{length}")]
 pub async fn generate_data(path: Path<u32>, args: Query<JSONFields>) -> impl Responder {
-    fn generate_data_inner(size: usize) -> String{
-        let data: Vec<FakeData> = (0..size)
+    fn generate_data_inner(size: usize) -> Vec<FakeData>{
+        (0..size)
             .into_par_iter()
             .map(|_| FakeData::random(&mut thread_rng()))
-            .collect();
-        serde_json::to_string(&data).unwrap()
+            .collect()
     }
     let args = args.into_inner();
     let size = path.into_inner() as usize;
     let perf = args.perf.unwrap_or(false);
 
     let data = if perf {
-        let result = measure!(generate_data_inner(size));
+        let result = JSONResponsePerf::from(measure!(generate_data_inner(size)));
         serde_json::to_string(&result).unwrap()
     } else {
-        generate_data_inner(size)
+        serde_json::to_string(&generate_data_inner(size)).unwrap()
     };
 
     HttpResponse::Ok()
@@ -57,7 +90,7 @@ pub async fn generate_data(path: Path<u32>, args: Query<JSONFields>) -> impl Res
 /// Response with CSV data.
 #[get("generate/csv/{length}")]
 pub async fn data_to_csv(path: Path<u32>, data: Data<AppConfig>, info: Query<CSVFields>) -> impl Responder {
-    fn data_to_csv_inner(perf: bool, size: usize, fields: Vec<String>, data: Data<AppConfig>) -> Result<String, String> {
+    async fn data_to_csv_inner(perf: bool, size: usize, fields: Vec<String>, data: Data<AppConfig>) -> Result<(String, (Vec<f32>, Vec<u64>), u128), String> {
         let req_path = if perf {
             format!("http://{}:{}/generate/json/{}?perf=true", data.root, data.port, size)
         } else {
@@ -65,25 +98,26 @@ pub async fn data_to_csv(path: Path<u32>, data: Data<AppConfig>, info: Query<CSV
         };
     
         let timer = Instant::now();
-        let resp = reqwest::blocking::get(req_path);
+        let resp = reqwest::get(req_path).await;
         let elapsed = timer.elapsed().as_millis();
         if resp.is_err() {
             return Err(format!("Failed to get data from server: {}", resp.unwrap_err()));
         }
+
         let resp = if perf {
-            match resp.unwrap().json::<(Vec<FakeData>, f32, u64)>() {
+            match resp.unwrap().json::<JSONResponsePerf>().await {
                 Ok(data) => data,
                 Err(_) => return Err(String::from("Failed to parse JSON response")),
             }
         } else {
-            match resp.unwrap().json::<Vec<FakeData>>() {
-                Ok(data) => (data, 0.0, 0),
+            match resp.unwrap().json::<Vec<FakeData>>().await {
+                Ok(data) => JSONResponsePerf::from((data, vec![], vec![])),
                 Err(_) => return Err(String::from("Failed to parse JSON response")),
             }
         };
         let mut writer = Writer::from_writer(vec![]);
         writer.write_record(&fields).unwrap();
-        for row in resp.0 {
+        for row in resp.data {
             let result = match row.to_computed_vec(&fields) {
                 Ok(data) => data,
                 Err(err) => return Err(format!("Failed to convert data to CSV: {}", err)),
@@ -93,9 +127,9 @@ pub async fn data_to_csv(path: Path<u32>, data: Data<AppConfig>, info: Query<CSV
         let csv = String::from_utf8(writer.into_inner().unwrap()).unwrap();
     
         if perf {
-            Ok(serde_json::to_string(&(csv, (resp.1, resp.2), elapsed)).unwrap())
+            Ok((csv, (resp.json_cpu_util, resp.json_mem_util), elapsed))
         } else {
-            Ok(csv)
+            Ok((csv, (vec![], vec![]), 0))
         }
     }
     let args = info.into_inner();
@@ -105,19 +139,27 @@ pub async fn data_to_csv(path: Path<u32>, data: Data<AppConfig>, info: Query<CSV
     let perf = args.perf.unwrap_or(false);
 
     if perf {
-        let res = measure!(data_to_csv_inner(perf, size, fields, data));
+        let res = measure_async!(data_to_csv_inner(perf, size, fields, data));
         if res.0.is_err() { return HttpResponse::InternalServerError().body(res.0.unwrap_err()); }
+        let jsonres = res.0.unwrap();
 
         HttpResponse::Ok()
         .content_type("application/json; charset=utf-8")
-        .json((res.0.unwrap(), res.1, res.2))
+        .json(CSVResponsePerf {
+            csv: jsonres.0,
+            csv_cpu_util: res.1,
+            csv_mem_util: res.2,
+            json_cpu_util: jsonres.1.0,
+            json_mem_util: jsonres.1.1,
+            json_time: jsonres.2,
+        })
     } else {
-        let res = data_to_csv_inner(perf, size, fields, data);
+        let res = data_to_csv_inner(perf, size, fields, data).await;
         if res.is_err() { return HttpResponse::InternalServerError().body(res.unwrap_err()); }
 
         HttpResponse::Ok()
         .content_type("text/csv; charset=utf-8")
-        .body(res.unwrap())
+        .body(res.unwrap().0)
     }
 }
 
