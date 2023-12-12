@@ -76,7 +76,7 @@ impl RandomGen for GeoPosition {
 }
 
 impl FakeData {
-    fn get_filtered_indexmap(&self, fields: &Vec<&str>) -> IndexMap<String, Expression> {
+    pub fn get_filtered_indexmap(&self, fields: &Vec<&str>) -> IndexMap<String, Expression> {
         let mut map = IndexMap::new();
         for field in fields { match *field {
                 "_type" => map.insert(String::from("_type"), Expression::String(self._type.clone())),
@@ -98,19 +98,5 @@ impl FakeData {
             };
         }
         return map;
-    }
-
-    pub fn to_computed_vec(&self, fields: &Vec<String>) -> Result<Vec<String>, String> {
-        let used_fields: Vec<&str> = FIELDS.clone().into_iter().filter(|x| fields.iter().any(|y| {
-            let re = Regex::new(&format!(r"\b{}\b", x)).unwrap();
-            re.is_match(y)
-        })).collect();
-        let map = self.get_filtered_indexmap(&used_fields);
-
-        fields.iter().map(|field| {
-            let parsed = parse_expression(field)?;
-            let result = parsed.eval(&map)?;
-            Ok(result.to_string())
-        }).collect()
     }
 }

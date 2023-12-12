@@ -5,7 +5,7 @@ use actix_web::{get, HttpResponse, Responder, web::{Data, Query, Path}};
 use rand::prelude::*;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::{data_gen::{FakeData, RandomGen}, AppConfig, measure, measure_async};
+use crate::{data_gen::{FakeData, RandomGen, FIELDS}, AppConfig, measure, measure_async, expression_parser};
 use csv::Writer;
 
 #[derive(Deserialize)]
@@ -63,6 +63,7 @@ pub async fn generate_data(path: Path<u32>, args: Query<JSONFields>) -> impl Res
     fn generate_data_inner(size: usize) -> Vec<FakeData>{
         (0..size)
             .into_par_iter()
+            // .into_iter()
             .map(|_| FakeData::random(&mut thread_rng()))
             .collect()
     }
@@ -115,13 +116,23 @@ pub async fn data_to_csv(path: Path<u32>, data: Data<AppConfig>, info: Query<CSV
                 Err(_) => return Err(String::from("Failed to parse JSON response")),
             }
         };
+
+        //precompute parsed fields
+        let used_fields: Vec<&str> = FIELDS.clone().into_iter().filter(|x| fields.iter().any(|y| {
+            let re = regex::Regex::new(&format!(r"\b{}\b", x)).unwrap();
+            re.is_match(y)
+        })).collect();
+        let parsed_fields = fields.iter().map(|field| expression_parser::parse_expression(field))
+            .collect::<Result<Vec<expression_parser::Expression>, String>>()?;
+
         let mut writer = Writer::from_writer(vec![]);
         writer.write_record(&fields).unwrap();
         for row in resp.data {
-            let result = match row.to_computed_vec(&fields) {
-                Ok(data) => data,
-                Err(err) => return Err(format!("Failed to convert data to CSV: {}", err)),
-            };
+            let map = row.get_filtered_indexmap(&used_fields);
+            let result: Vec<String> = parsed_fields.iter()
+                .map(|field| {
+                    field.eval(&map).unwrap().to_string()
+                }).collect();
             writer.write_record(result).unwrap();
         };
         let csv = String::from_utf8(writer.into_inner().unwrap()).unwrap();
@@ -163,14 +174,48 @@ pub async fn data_to_csv(path: Path<u32>, data: Data<AppConfig>, info: Query<CSV
     }
 }
 
-// /// API endpoint to measure performance of handling CSV data generation with arguments specified in `CSVFields` struct.
-// /// 
-// /// # Returns
-// /// 
-// /// Response with performance data.
-// pub async fn measure_csv_perf(data: Data<AppConfig>, info: Query<CSVFields>) -> impl Responder {
-//     let args = info.into_inner();
-//     let size = args.length.unwrap_or(10);
+/// API endpoint to measure performance of handling CSV data generation with arguments specified in `CSVFields` struct.
+/// 
+/// # Returns
+/// 
+/// Response with performance data.
+#[get("measure/csv/{length}")]
+pub async fn measure_csv_perf(path: Path<u32>, data: Data<AppConfig>, info: Query<CSVFields>) -> impl Responder {
+    let args = info.into_inner();
+    let length = path.into_inner() as usize;
+    let fields = args.fields;
 
-    
-// }
+    let req_path = match fields {
+        Some(fields) => format!("http://{}:{}/generate/csv/{}?perf=true&fields={}", data.root, data.port, length, fields),
+        None => format!("http://{}:{}/generate/csv/{}?perf=true", data.root, data.port, length),
+    };
+
+    let timer = Instant::now();
+    let resp = reqwest::get(req_path).await;
+    let elapsed = timer.elapsed().as_millis();
+    if resp.is_err() {
+        return HttpResponse::InternalServerError().body(format!("Failed to get data from server: {}", resp.unwrap_err()));
+    }
+    let result = resp.unwrap().json::<CSVResponsePerf>().await;
+    if result.is_err() {
+        return HttpResponse::InternalServerError().body(format!("Failed to parse JSON response: {}", result.unwrap_err()));
+    }
+    let result = result.unwrap();
+
+    let response = format!(r#"STATISTICS FOR CALLING /generate/csv/{length}:
+- CPU utilization: {:?}
+- Memory utilization: {:?}
+- Time elapsed: {} ms
+
+STATISTICS FOR CALLING /generate/json/{length} from /generate/csv/{length}:
+- CPU utilization: {:?}
+- Memory utilization: {:?}
+- Time elapsed: {} ms"
+
+All utilization values are measured with 200ms interval.
+"#, result.csv_cpu_util, result.csv_mem_util, elapsed, result.json_cpu_util, result.json_mem_util, result.json_time);
+
+    HttpResponse::Ok()
+    .content_type("text/plain; charset=utf-8")
+    .body(response)
+}

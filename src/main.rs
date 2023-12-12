@@ -25,6 +25,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(Data::new(server_config.clone()))
             .service(services::generate_data)
             .service(services::data_to_csv)
+            .service(services::measure_csv_perf)
     }).bind((config.root.clone(), config.port.clone()))?
     .run()
     .await
