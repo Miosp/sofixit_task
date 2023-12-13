@@ -11,23 +11,22 @@ Three services:
 1. Service which returns at **/generate/json/{size}** a list of jsons with the indicated size and structured below with random values.
 ```json
 {
-    _type: "Position",
-    _id: 65483214,
-    key: null,
-    name: "Oksywska",
-    fullName: "Oksywska, Poland",
-    iata_airport_code: null,
-    type: "location",
-    country: "Poland",
-    geo_position: {
-        latitude: 51.0855422,
-        longitude: 16.9987442
-    },
-    location_id: 756423,
-    inEurope: true,
-    countryCode: "PL",
-    coreCountry: true,
-    distance: null
+   "_type": "Position",
+   "_id": 65483214,
+   "key": null,
+   "name": "Oksywska",
+   "fullName": "Oksywska, Poland",
+   "iata_airport_code": null,
+   "type": "location",
+   "country": "Poland",
+   "geo_position": {
+      "latitude": 51.0855422,
+      "longitude": 16.9987442
+   },
+   "location_id": 756423,
+   "inEurope": true,
+   "countryCode": "PL",
+   "coreCountry": true,
 }
 ```
 2. Service that takes the data from the first one and converts it to csv.
