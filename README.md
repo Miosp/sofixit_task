@@ -81,7 +81,7 @@ Usage: **/generate/csv/{size}?perf={true|false}**
 - Make errors more indicative where the issue happened
 - Use better implementation of pest (like [faster-pest](https://github.com/Mubelotix/faster-pest) that claims 700% performance increase on example JSON parsing benchmark. The crate doesn't ship with pratt parser though, so it would have to be implemented manually)
 
-##Task 3, the performance report
+## Task 3, the performance report
 This task was a challenging one, but not because of the complexity of the task itself, but the fact that Rust is not made for performance measuring internally. It would be way better to use some external tool for that. For my (keep in mind, very makeshift) solution I used [sysinfo](https://docs.rs/sysinfo/latest/sysinfo/) crate. It uses platform specific system calls to get wanted statistics. Then I modified each endpoint to support a query parameter that would enable performance measuring. I also added a new endpoint that would return a simple plaintext report.
 While generating the report i encoutered a problem with the fact that sometimes CPU usage was reported as 0.0%. It is because sysinfo sometimes will not update the data before reading the values.
 
