@@ -210,7 +210,7 @@ pub async fn measure_csv_perf(path: Path<u32>, data: Data<AppConfig>, info: Quer
 STATISTICS FOR CALLING /generate/json/{length} from /generate/csv/{length}:
 - CPU utilization: {:?}
 - Memory utilization: {:?}
-- Time elapsed: {} ms"
+- Time elapsed: {} ms
 
 All utilization values are measured with 200ms interval.
 "#, result.csv_cpu_util, result.csv_mem_util, elapsed, result.json_cpu_util, result.json_mem_util, result.json_time);

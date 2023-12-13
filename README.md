@@ -44,6 +44,12 @@ This type of very open task can be very extensive in terms of implementation, so
 
 ## Task 1, the JSON generator
 This one was fairly simple because of the fact, that the data needs to be truly random. If we had to pick a random place and then get all of the data from it, then generating 100k of those would be a pain and would require some API calls for a map service. Fortunately i could just build a simple random generator for the data. I defined a structure with desired fields and used derive functionality of Rust's Serde crate to automatically allow for JSON serialization. Then i just had to define how to generate fields randomly. For that i used a mix of random number generation and providing a list of possible values for some fields. I also made the generator parallel, so that it can generate 100k of those in a reasonable time.
+
+Usage: **/generate/json/{size}?perf={true|false}**
+- size: number of JSONs to generate
+- perf: whether to measure performance or not (more on that later)
+
+
 ### What could be done in the future:
 - Improve parallel generation, since current implementation uses fully automatic solution, which is simple but is not squeezing the most out of the hardware (which can be seen in the reports from task 3)
 - Improve error codes and messages, since currently they are not very descriptive
@@ -67,7 +73,110 @@ My language supporrts:
 - Parentheses: (1 + 2) * 3
 - Unary minus: -(...)
 
+Usage: **/generate/csv/{size}?perf={true|false}**
+- size: number of CSV rows to generate
+- perf: whether to measure performance or not (more on that later)
+
 ### What could be done in the future:
 - Extend the language to support more features (functions, boolean algebra, more intelligent type conversions)
 - Make errors more indicative where the issue happened
 - Use better implementation of pest (like [faster-pest](https://github.com/Mubelotix/faster-pest) that claims 700% performance increase on example JSON parsing benchmark. The crate doesn't ship with pratt parser though, so it would have to be implemented manually)
+
+##Task 3, the performance report
+This task was a challenging one, but not because of the complexity of the task itself, but the fact that Rust is not made for performance measuring internally. It would be way better to use some external tool for that. For my (keep in mind, very makeshift) solution I used [sysinfo](https://docs.rs/sysinfo/latest/sysinfo/) crate. It uses platform specific system calls to get wanted statistics. Then I modified each endpoint to support a query parameter that would enable performance measuring. I also added a new endpoint that would return a simple plaintext report.
+While generating the report i encoutered a problem with the fact that sometimes CPU usage was reported as 0.0%. It is because sysinfo sometimes will not update the data before reading the values.
+
+Usage: **/measure/csv/{size}**
+- size: size of request to measure performance for
+
+### What could be done in the future:
+- If the project was forced to use internal measuring, the overhead of measuring should be reduced to provide more accurate data
+- Use some external tool for performance measuring
+- Detatch the perrformance measuring from internal logic of the services
+- Enable multi-sampling for more accurate results
+
+## The reports
+My structure for the reports is as follows:
+```
+STATISTICS FOR CALLING /generate/csv/{length}:
+- CPU utilization: []
+- Memory utilization: []
+- Time elapsed: {}
+
+STATISTICS FOR CALLING /generate/json/{length} from /generate/csv/{length}:
+- CPU utilization: []
+- Memory utilization: []
+- Time elapsed: {}
+
+All utilization values are measured with 200ms interval.
+```
+I will provide reports for 1k, 10k and 100k of generated JSONs and direct time measurements from [httpstat](https://github.com/reorx/httpstat), to show the overhead of the measurement. My machine includes a Ryzen 5800X CPU and 16GB of RAM.
+
+### 1k JSONs
+```
+STATISTICS FOR CALLING /generate/csv/1000:
+- CPU utilization: [0.0, 7.1428576]
+- Memory utilization: [25538560, 29335552]
+- Time elapsed: 1369 ms
+
+STATISTICS FOR CALLING /generate/json/1000 from /generate/csv/1000:
+- CPU utilization: [0.0]
+- Memory utilization: [28827648]
+- Time elapsed: 245 ms
+
+All utilization values are measured with 200ms interval.
+```
+
+Calling /generate/json/1000 directly from httpstat:
+- Server processing: 1ms
+- Content transfer: 1ms
+
+Calling /generate/csv/1000 directly from httpstat:
+- Server processing: 6ms
+- Content transfer: 1ms
+
+### 10k JSONs
+```
+STATISTICS FOR CALLING /generate/csv/10000:
+- CPU utilization: [0.0, 0.0]
+- Memory utilization: [28344320, 34443264]
+- Time elapsed: 450 ms
+
+STATISTICS FOR CALLING /generate/json/10000 from /generate/csv/10000:
+- CPU utilization: [0.0]
+- Memory utilization: [29577216]
+- Time elapsed: 247 ms
+
+All utilization values are measured with 200ms interval.
+```
+
+Calling /generate/json/10000 directly from httpstat:
+- Server processing: 8ms
+- Content transfer: 3ms
+
+Calling /generate/csv/10000 directly from httpstat:
+- Server processing: 44ms
+- Content transfer: 1ms
+
+### 100k JSONs
+```
+STATISTICS FOR CALLING /generate/csv/100000:
+- CPU utilization: [0.0, 0.0]
+- Memory utilization: [28872704, 78110720]
+- Time elapsed: 691 ms
+
+STATISTICS FOR CALLING /generate/json/100000 from /generate/csv/100000:
+- CPU utilization: [0.0]
+- Memory utilization: [31703040]
+- Time elapsed: 314 ms
+
+All utilization values are measured with 200ms interval.
+```
+
+Calling /generate/json/100000 directly from httpstat:
+- Server processing: 79ms
+- Content transfer: 39ms
+
+Calling /generate/csv/100000 directly from httpstat:
+- Server processing: 416ms
+- Content transfer: 5ms
