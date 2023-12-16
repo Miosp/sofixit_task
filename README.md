@@ -52,6 +52,7 @@ Usage: **/generate/json/{size}?perf={true|false}**
 ### What could be done in the future:
 - Improve parallel generation, since current implementation uses fully automatic solution, which is simple but is not squeezing the most out of the hardware (which can be seen in the reports from task 3)
 - Improve error codes and messages, since currently they are not very descriptive
+- Add simulation of a delay of getting the data from a database or an API, to simulate a real world scenario
 
 ## Task 2, the CSV converter
 In this task each next subpoint is a superset of the previous one, so if the last one was working well, all previous ones can use the same code to reduce the code complexity.
@@ -80,6 +81,7 @@ Usage: **/generate/csv/{size}?perf={true|false}**
 - Extend the language to support more features (functions, boolean algebra, more intelligent type conversions)
 - Make errors more indicative where the issue happened
 - Use better implementation of pest (like [faster-pest](https://github.com/Mubelotix/faster-pest) that claims 700% performance increase on example JSON parsing benchmark. The crate doesn't ship with pratt parser though, so it would have to be implemented manually)
+- Write more tests
 
 ## Task 3, the performance report
 This task was a challenging one, but not because of the complexity of the task itself, but the fact that Rust is not made for performance measuring internally. It would be way better to use some external tool for that. For my (keep in mind, very makeshift) solution I used [sysinfo](https://docs.rs/sysinfo/latest/sysinfo/) crate. It uses platform specific system calls to get wanted statistics. Then I modified each endpoint to support a query parameter that would enable performance measuring. I also added a new endpoint that would return a simple plaintext report.

@@ -17,22 +17,21 @@ lazy_static! {
 #[grammar = "src/expressionGrammar.pest"]
 struct ExpressionParser;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum Function {
     SquareRoot,
     PowerOf2,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum InfixOp {
     Add,
     Subtract,
     Multiply,
     Divide,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
-    
     BinOp(BinOp),
     Number(i64),
     Float(f64),
@@ -43,7 +42,7 @@ pub enum Expression {
     Funct(Function, Box<Expression>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BinOp {
     pub op: InfixOp,
     pub left: Box<Expression>,
@@ -51,6 +50,15 @@ pub struct BinOp {
 }
 
 impl Expression {
+    /// Evaluates the expression and returns the result.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `map` - A map containing the values of the constants used in the expression.
+    /// 
+    /// # Returns
+    /// 
+    /// The result of the expression. 
     pub fn eval(&self, map: &IndexMap<String, Expression>) -> Result<Expression, String>{
         use Expression::*;
 
@@ -166,6 +174,15 @@ impl InfixOp {
 
 }
 
+/// Parses the given expression and returns the corresponding `Expression` object.
+/// 
+/// # Arguments
+/// 
+/// * `expression` - `&str` format of the expression to parse.
+/// 
+/// # Returns
+/// 
+/// The parsed expression.
 pub fn parse_expression(expression: &str) -> Result<Expression, String> {
     fn parse(pairs: Pairs<'_, Rule>) -> Result<Expression, String> {
         PRATT_PARSER.map_primary(|primary| match primary.as_rule() {

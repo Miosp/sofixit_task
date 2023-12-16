@@ -1,12 +1,11 @@
 use rand::prelude::*;
-use regex::Regex;
 use serde::{Serialize, Deserialize};
 use indexmap::IndexMap;
-use crate::expression_parser::{parse_expression, Expression};
+use crate::expression_parser::Expression;
 
 pub static FIELDS: [&str; 15] = ["_type", "_id", "key", "name", "fullName", "iata_airport_code", "type", "country", "latitude", "longitude", "location_id", "inEurope", "countryCode", "coreCountry", "distance"];
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct FakeData {
     pub _type: String,
     pub _id: u32,
@@ -28,13 +27,22 @@ pub struct FakeData {
     pub distance: Option<f64>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct GeoPosition {
     pub latitude: String,
     pub longitude: String,
 }
 
 pub trait RandomGen {
+    /// Generates fake data for a position.
+    ///
+    /// # Arguments
+    ///
+    /// * `rng` - A mutable reference to the random number generator.
+    ///
+    /// # Returns
+    ///
+    /// A `FakeData` struct containing randomly generated data for a position.
     fn random<T: Rng + ?Sized>(rng: &mut T) -> Self;
 }
 
@@ -76,6 +84,31 @@ impl RandomGen for GeoPosition {
 }
 
 impl FakeData {
+    /// Returns a filtered `IndexMap` containing the specified fields and their corresponding expressions.
+    ///
+    /// # Arguments
+    ///
+    /// * `fields` - A vector of field names to include in the filtered `IndexMap`.
+    ///
+    /// # Returns
+    ///
+    /// A filtered `IndexMap` where the keys are the field names and the values are the corresponding expressions.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use indexmap::IndexMap;
+    /// use crate::Expression;
+    ///
+    /// let fake_data = FakeData::random(&mut rand::thread_rng());
+    /// let fields = vec!["_type", "name", "country"];
+    /// let filtered_map = fake_data.get_filtered_indexmap(&fields);
+
+    /// assert_eq!(filtered_map.len(), 3);
+    /// assert_eq!(filtered_map.get("_type").unwrap(), &Expression::String(fake_data._type.clone()));
+    /// assert_eq!(filtered_map.get("name").unwrap(), &Expression::String(fake_data.name.clone()));
+    /// assert_eq!(filtered_map.get("country").unwrap(), &Expression::String(fake_data.country.clone()));
+    /// ```
     pub fn get_filtered_indexmap(&self, fields: &Vec<&str>) -> IndexMap<String, Expression> {
         let mut map = IndexMap::new();
         for field in fields { match *field {
@@ -99,4 +132,16 @@ impl FakeData {
         }
         return map;
     }
+}
+
+#[test]
+fn test_get_filtered_indexmap() {
+    let fake_data = FakeData::random(&mut rand::thread_rng());
+    let fields = vec!["_type", "name", "country"];
+    let filtered_map = fake_data.get_filtered_indexmap(&fields);
+
+    assert_eq!(filtered_map.len(), 3);
+    assert_eq!(filtered_map.get("_type").unwrap(), &Expression::String(fake_data._type.clone()));
+    assert_eq!(filtered_map.get("name").unwrap(), &Expression::String(fake_data.name.clone()));
+    assert_eq!(filtered_map.get("country").unwrap(), &Expression::String(fake_data.country.clone()));
 }
