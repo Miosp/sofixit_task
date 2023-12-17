@@ -116,14 +116,14 @@ I will provide reports for 1k, 10k and 100k of generated JSONs and direct time m
 ### 1k JSONs
 ```
 STATISTICS FOR CALLING /generate/csv/1000:
-- CPU utilization: [0.0, 7.1428576]
-- Memory utilization: [25538560, 29335552]
-- Time elapsed: 1369 ms
+- CPU utilization: [0.0, 0.0]
+- Memory utilization: [25300992, 27750400]
+- Time elapsed: 936 ms
 
 STATISTICS FOR CALLING /generate/json/1000 from /generate/csv/1000:
 - CPU utilization: [0.0]
-- Memory utilization: [28827648]
-- Time elapsed: 245 ms
+- Memory utilization: [27250688]
+- Time elapsed: 239 ms
 
 All utilization values are measured with 200ms interval.
 ```
@@ -140,13 +140,13 @@ Calling /generate/csv/1000 directly from httpstat:
 ```
 STATISTICS FOR CALLING /generate/csv/10000:
 - CPU utilization: [0.0, 0.0]
-- Memory utilization: [28344320, 34443264]
-- Time elapsed: 450 ms
+- Memory utilization: [28139520, 34381824]
+- Time elapsed: 444 ms
 
 STATISTICS FOR CALLING /generate/json/10000 from /generate/csv/10000:
 - CPU utilization: [0.0]
-- Memory utilization: [29577216]
-- Time elapsed: 247 ms
+- Memory utilization: [29417472]
+- Time elapsed: 236 ms
 
 All utilization values are measured with 200ms interval.
 ```
@@ -156,27 +156,27 @@ Calling /generate/json/10000 directly from httpstat:
 - Content transfer: 3ms
 
 Calling /generate/csv/10000 directly from httpstat:
-- Server processing: 44ms
+- Server processing: 43ms
 - Content transfer: 1ms
 
 ### 100k JSONs
 ```
 STATISTICS FOR CALLING /generate/csv/100000:
 - CPU utilization: [0.0, 0.0]
-- Memory utilization: [28872704, 78110720]
-- Time elapsed: 691 ms
+- Memory utilization: [28913664, 77717504]
+- Time elapsed: 680 ms
 
 STATISTICS FOR CALLING /generate/json/100000 from /generate/csv/100000:
 - CPU utilization: [0.0]
-- Memory utilization: [31703040]
-- Time elapsed: 314 ms
+- Memory utilization: [30425088]
+- Time elapsed: 306 ms
 
 All utilization values are measured with 200ms interval.
 ```
 
 Calling /generate/json/100000 directly from httpstat:
-- Server processing: 79ms
-- Content transfer: 39ms
+- Server processing: 75ms
+- Content transfer: 44ms
 
 Calling /generate/csv/100000 directly from httpstat:
 - Server processing: 416ms
