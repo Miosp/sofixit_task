@@ -226,10 +226,84 @@ pub fn parse_expression(expression: &str) -> Result<Expression, String> {
     parse(output)
 }
 
-#[test]
-fn test_parse_expression() {
-    let expression ="4 * (4 + 6) + -1 + -2 --2 -(-1) -(-4* 55) + sqrt(nice) + pow2(type)";
-    let result = parse_expression(expression);
-    assert!(result.is_ok());
-    println!("{:?}", result.unwrap());
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_expression_unary_minus() {
+        let expression = "1 --2";
+        let parsed = parse_expression(expression).unwrap();
+        assert_eq!(parsed, Expression::BinOp(BinOp {
+            op: InfixOp::Subtract,
+            left: Box::new(Expression::Number(1)),
+            right: Box::new(Expression::Negate(Box::new(Expression::Number(2)))),
+        }));
+    }
+
+    #[test]
+    fn parse_expression_unary_minus_parenthesis() {
+        let expression = "1 -(-2)";
+        let parsed = parse_expression(expression).unwrap();
+        assert_eq!(parsed, Expression::BinOp(BinOp {
+            op: InfixOp::Subtract,
+            left: Box::new(Expression::Number(1)),
+            right: Box::new(Expression::Parenthesis(Box::new(Expression::Negate(Box::new(Expression::Number(2)))))),
+        }));
+    }
+
+    #[test]
+    fn parse_expression_unary_minus_parenthesis_parenthesis() {
+        let expression = "1 -(-(2))";
+        let parsed = parse_expression(expression).unwrap();
+        assert_eq!(parsed, Expression::BinOp(BinOp {
+            op: InfixOp::Subtract,
+            left: Box::new(Expression::Number(1)),
+            right: Box::new(Expression::Parenthesis(Box::new(Expression::Negate(Box::new(Expression::Parenthesis(Box::new(Expression::Number(2)))))))),
+        }));
+    }
+
+    #[test]
+    fn parse_expression_function() {
+        let expression = "sqrt(2)";
+        let parsed = parse_expression(expression).unwrap();
+        assert_eq!(parsed, Expression::Funct(Function::SquareRoot, Box::new(Expression::Number(2))));
+    }
+
+    #[test]
+    fn parse_expression_function_nested() {
+        let expression = "sqrt(pow2(2))";
+        let parsed = parse_expression(expression).unwrap();
+        assert_eq!(parsed, Expression::Funct(Function::SquareRoot, Box::new(Expression::Funct(Function::PowerOf2, Box::new(Expression::Number(2))))));
+    }
+
+    #[test]
+    fn parse_expression_constant() {
+        let expression = "1 + _id";
+        let parsed = parse_expression(expression).unwrap();
+        assert_eq!(parsed, Expression::BinOp(BinOp {
+            op: InfixOp::Add,
+            left: Box::new(Expression::Number(1)),
+            right: Box::new(Expression::Constant(String::from("_id"))),
+        }));
+    }
+
+    #[test]
+    fn parse_expression_constant_parenthesis() {
+        let expression = "1 + (_id)";
+        let parsed = parse_expression(expression).unwrap();
+        assert_eq!(parsed, Expression::BinOp(BinOp {
+            op: InfixOp::Add,
+            left: Box::new(Expression::Number(1)),
+            right: Box::new(Expression::Parenthesis(Box::new(Expression::Constant(String::from("_id"))))),
+        }));
+    }
+
+    #[test]
+    fn parse_expression_incorrect() {
+        let expression = "1 + _id +";
+        let parsed = parse_expression(expression);
+        assert!(parsed.is_err());
+    }
 }
